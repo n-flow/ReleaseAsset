@@ -1,0 +1,154 @@
+name: Generate APK
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  check-secret:
+    runs-on: ubuntu-latest
+    outputs:
+      have_firebase_app_id: ${{ steps.have_firebase_app_id.outputs.defined }}
+      have_firebase_token: ${{ steps.have_firebase_token.outputs.defined }}
+      have_team_channel_webhook_url: ${{ steps.have_team_channel_webhook_url.outputs.defined }}
+      have_app_package_name: ${{ steps.have_app_package_name.outputs.defined }}
+    steps:
+      - id: have_firebase_app_id
+        env:
+          MY_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+        if: "${{ env.MY_APP_ID != '' }}"
+        run: echo "::set-output name=defined::true"
+
+      - id: have_firebase_token
+        env:
+          MY_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        if: "${{ env.MY_TOKEN != '' }}"
+        run: echo "::set-output name=defined::true"
+
+      - id: have_team_channel_webhook_url
+        env:
+          MY_WEBHOOK_URL: ${{ secrets.TEAM_CHANNEL_WEBHOOK_URL }}
+        if: "${{ env.MY_WEBHOOK_URL != '' }}"
+        run: echo "::set-output name=defined::true"
+
+      - id: have_app_package_name
+        env:
+          MY_APP_PACKAGE_NAME: ${{ secrets.APP_PACKAGE_NAME }}
+        if: "${{ env.MY_APP_PACKAGE_NAME != '' }}"
+        run: echo "::set-output name=defined::true"
+
+  generate-debug-apk:
+    name: Generate Debug APK
+    runs-on: ubuntu-latest
+    needs: [check-secret]
+    if: ${{ contains(github.ref, 'QA') }}
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v2
+
+      - name: Setup Java 11 Environment
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+
+      - name: Update Permission for gradle
+        run: chmod +x gradlew
+
+      - name: Build APK
+        run: ./gradlew clean assembleQa
+
+      - name: Upload to release asset
+        uses: n-flow/ReleaseAsset@main
+        id: attach_to_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
+        with:
+          args: "app/build/outputs/apk/qa/*.apk"
+
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::$(echo $GITHUB_REF | cut -d / -f 3)
+
+      - if: needs.check-secret.outputs.have_firebase_app_id != 'true'
+        name: FIREBASE_APP_ID Not Available
+        run: echo FIREBASE_APP_ID Not Available
+
+      - if: needs.check-secret.outputs.have_firebase_token != 'true'
+        name: FIREBASE_TOKEN Not Available
+        run: echo FIREBASE_TOKEN Not Available
+
+      - if: needs.check-secret.outputs.have_firebase_app_id == 'true' && needs.check-secret.outputs.have_firebase_token == 'true'
+        name: upload artifact to Firebase App Distribution
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{secrets.FIREBASE_APP_ID}}
+          token: ${{secrets.FIREBASE_TOKEN}}
+          groups: Testers
+          releaseNotesFile: "app/releaseNote.txt"
+          debug: true
+          file: "app/build/outputs/apk/qa/${{ steps.attach_to_release.outputs.firebase_file_name }}"
+
+      - if: needs.check-secret.outputs.have_team_channel_webhook_url != 'true'
+        name: TEAM_CHANNEL_WEBHOOK_URL Not Available
+        run: echo TEAM_CHANNEL_WEBHOOK_URL Not Available
+
+      - if: needs.check-secret.outputs.have_team_channel_webhook_url == 'true'
+        name: Send a message to Microsoft Teams
+        uses: aliencube/microsoft-teams-actions@v0.8.0
+        with:
+          webhook_uri: ${{ secrets.TEAM_CHANNEL_WEBHOOK_URL }}
+          title: QA Build
+          summary: summary
+          text: "File has been uploaded in Firebase console with this version name ${{ steps.get_version.outputs.VERSION }}. You can also download file from this link ${{ steps.attach_to_release.outputs.url }}${{ steps.get_version.outputs.VERSION }}/${{ steps.attach_to_release.outputs.file_name }} "
+
+  generate-release-Bundle:
+    #    name: Generate Release APK
+    name: Generate Release Bundle
+    runs-on: ubuntu-latest
+    if: ${{ contains(github.ref, 'QA') == false }}
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v2
+
+      - name: Setup Java 11 Environment
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+
+      - name: Update Permission for gradle
+        run: chmod +x gradlew
+
+      #      - name: Build APK
+      #        run: ./gradlew clean assembleRelease
+      - name: Build Bundle
+        run: ./gradlew clean :app:bundleRelease
+
+      - name: Upload to release asset
+        uses: n-flow/ReleaseAsset@main
+        id: attach_to_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIT_ACCESS_TOKEN }}
+        with:
+          #          args: "app/build/outputs/apk/release/*.apk"
+          args: "app/build/outputs/bundle/release/*.aab"
+
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::$(echo $GITHUB_REF | cut -d / -f 3)
+
+      - if: needs.check-secret.outputs.have_app_package_name != 'true'
+        name: APP_PACKAGE_NAME Not Available
+        run: echo APP_PACKAGE_NAME Not Available
+
+      - name: Upload bundle in play store
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJson: app/play_store_user.json
+          packageName: ${{ secrets.APP_PACKAGE_NAME }}
+          releaseFiles: app/build/outputs/bundle/release/*.aab
+          track: internal
+          whatsNewDirectory: app/whatsNewDirectory/
+          inAppUpdatePriority: 2
+          status: completed

@@ -1,0 +1,26 @@
+name: 'ReleaseAsset'
+description: 'Publish binaries when new releases are made.'
+author: 'Steve Kemp'
+branding:
+  icon: save
+  color: black
+inputs:
+  args:
+    description: 'The pattern of files to upload'
+    required: true
+  releaseId:
+    description: 'The release Id of the release to be targeted.'
+    required: false
+outputs:
+  url:
+    description: Team Channel URL
+  file_name:
+    description: Team Channel File Name
+  firebase_file_name:
+    description: Firebase File Name
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.args }}
+    - ${{ inputs.releaseId }}
