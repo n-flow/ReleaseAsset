@@ -1,4 +1,4 @@
-FROM n-flow
+FROM debian:bullseye
 
 LABEL "com.github.actions.name"="ReleaseAsset"
 LABEL "com.github.actions.description"="Upload artifacts when new releases are made"
