@@ -174,8 +174,8 @@ for file in $INPUT_ARGS; do
   echo "downloadUrl:  ${downloadUrl}"
   echo "fileName:  ${fileName}"
   echo "FILENAME:  ${FILENAME}"
-  echo ::set-output name=url::"$downloadUrl"
-  echo ::set-output name=file_name::"${fileName}"
-  echo ::set-output name=firebase_file_name::"${FILENAME}"
+  echo url::"$downloadUrl" >> $GITHUB_OUTPUT
+  echo file_name::"${fileName}" >> $GITHUB_OUTPUT
+  echo firebase_file_name::"${FILENAME}" >> $GITHUB_OUTPUT
 
 done
