@@ -171,11 +171,11 @@ for file in $INPUT_ARGS; do
   fileName="${tempFileName/)/"$replaceBrackets"}"
   downloadUrl="https://github.com/${GITHUB_REPOSITORY}/releases/download/"
 
-  echo "url:  ${downloadUrl}"
-  echo "file_name:  ${fileName}"
-  echo "firebase_file_name:  ${FILENAME}"
+  echo "downloadUrl:  ${downloadUrl}"
+  echo "fileName:  ${fileName}"
+  echo "FILENAME:  ${FILENAME}"
+  echo url="$downloadUrl" >> $GITHUB_STATE
+  echo file_name="${fileName}" >> $GITHUB_STATE
+  echo firebase_file_name="${FILENAME}" >> $GITHUB_STATE
 
-  echo "url=${downloadUrl}" $GITHUB_OUTPUT
-  echo "file_name=${fileName}" $GITHUB_OUTPUT
-  echo "firebase_file_name=${FILENAME}" $GITHUB_OUTPUT
 done
